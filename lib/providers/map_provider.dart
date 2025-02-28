@@ -2,127 +2,140 @@ import 'package:flutter/material.dart';
 import 'package:universal_open_source_map_app/models/location.dart';
 import 'package:universal_open_source_map_app/services/location_service.dart';
 import 'package:universal_open_source_map_app/services/map_service.dart';
+import 'dart:async';
 
 class MapProvider with ChangeNotifier {
-final MapService _mapService;
-final LocationService _locationService;
+  final MapService _mapService;
+  final LocationService _locationService;
 
-// Current user location
-Location? _currentLocation;
-Location? get currentLocation => _currentLocation;
+  // Current user location
+  Location? _currentLocation;
+  Location? get currentLocation => _currentLocation;
 
-// Selected location on map
-Location? _selectedLocation;
-Location? get selectedLocation => _selectedLocation;
+  // Selected location on map
+  Location? _selectedLocation;
+  Location? get selectedLocation => _selectedLocation;
 
-// Search results
-List<Location> _searchResults = [];
-List<Location> get searchResults => _searchResults;
+  Timer? _searchDebounce;
 
-// Loading states
-bool _isLoading = false;
-bool get isLoading => _isLoading;
+  // Search results
+  List<Location> _searchResults = [];
+  List<Location> get searchResults => _searchResults;
 
-bool _isSearching = false;
-bool get isSearching => _isSearching;
+  // Loading states
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
 
-String? _error;
-String? get error => _error;
+  bool _isSearching = false;
+  bool get isSearching => _isSearching;
 
-MapProvider({
+  String? _error;
+  String? get error => _error;
+
+  MapProvider({
     required MapService mapService,
     required LocationService locationService,
-})  : _mapService = mapService,
-        _locationService = locationService;
+  }) : _mapService = mapService,
+       _locationService = locationService;
 
-// Get the user's current location
-Future<void> getCurrentLocation() async {
+  // Get the user's current location
+  Future<void> getCurrentLocation() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-    final position = await _locationService.getCurrentPosition();
-    _currentLocation = Location(
+      final position = await _locationService.getCurrentPosition();
+      _currentLocation = Location(
         latitude: position.latitude,
         longitude: position.longitude,
         name: 'Current Location',
         address: 'Your current location',
-    );
+      );
     } catch (e) {
-    _error = 'Failed to get current location: $e';
+      _error = 'Failed to get current location: $e';
     } finally {
-    _isLoading = false;
-    notifyListeners();
+      _isLoading = false;
+      notifyListeners();
     }
-}
+  }
 
-// Search for locations by query
-Future<void> searchLocations(String query) async {
-    if (query.isEmpty) {
-    _searchResults = [];
-    notifyListeners();
-    return;
-    }
+  // Search for locations by query
+  Future<void> searchLocations(String query, {int limit = 5}) async {
+    // Debounce: cancel any pending search request.
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      if (query.isEmpty) {
+        _searchResults = [];
+        notifyListeners();
+        return;
+      }
 
-    _isSearching = true;
-    _error = null;
-    notifyListeners();
+      _isSearching = true;
+      _error = null;
+      notifyListeners();
 
-    try {
-    _searchResults = await _mapService.searchLocations(query);
-    } catch (e) {
-    _error = 'Failed to search locations: $e';
-    _searchResults = [];
-    } finally {
-    _isSearching = false;
-    notifyListeners();
-    }
-}
+      try {
+        // Call searchLocations with limit=5.
+        _searchResults = await _mapService.searchLocations(query, limit: limit);
+      } catch (e) {
+        _error = 'Failed to search locations: $e';
+        _searchResults = [];
+      } finally {
+        _isSearching = false;
+        notifyListeners();
+      }
+    });
+  }
 
-// Select a location on the map
-void selectLocation(Location location) {
+  // Select a location on the map
+  void selectLocation(Location location) {
     _selectedLocation = location;
     notifyListeners();
-}
+  }
 
-// Clear the selected location
-void clearSelectedLocation() {
+  // Clear the selected location
+  void clearSelectedLocation() {
     _selectedLocation = null;
     notifyListeners();
-}
+  }
 
-// Clear search results
-void clearSearchResults() {
+  // Clear search results
+  void clearSearchResults() {
     _searchResults = [];
     notifyListeners();
-}
+  }
 
-// Get details for a specific location
-Future<Location?> getLocationDetails(Location location) async {
+  // Get details for a specific location
+  Future<Location?> getLocationDetails(Location location) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-    final detailedLocation = await _mapService.getLocationDetails(
+      final detailedLocation = await _mapService.getLocationDetails(
         latitude: location.latitude,
-        longitude: location.longitude
-    );
-    
-    if (detailedLocation != null) {
+        longitude: location.longitude,
+      );
+
+      if (detailedLocation != null) {
         // Update selected location with detailed information
         _selectedLocation = detailedLocation;
-    }
-    
-    return detailedLocation;
-    } catch (e) {
-    _error = 'Failed to get location details: $e';
-    return null;
-    } finally {
-    _isLoading = false;
-    notifyListeners();
-    }
-}
-}
+      }
 
+      return detailedLocation;
+    } catch (e) {
+      _error = 'Failed to get location details: $e';
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+}
