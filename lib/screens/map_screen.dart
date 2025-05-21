@@ -16,7 +16,6 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   final MapController _mapController = MapController();
-  bool _isSearching = false;
 
   @override
   void initState() {
@@ -56,9 +55,9 @@ class _MapScreenState extends State<MapScreen> {
             children: [
               _buildMap(mapProvider),
               _buildMapControls(mapProvider),
-              if (_isSearching)
+              if (mapProvider.isSearching)
                 const Center(child: CircularProgressIndicator()),
-              if (mapProvider.searchResults.isNotEmpty && !_isSearching)
+              if (mapProvider.searchResults.isNotEmpty && !mapProvider.isSearching)
                 _buildSearchResults(mapProvider),
             ],
           );
